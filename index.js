@@ -4,28 +4,36 @@ import fs from "fs";
 
 const app = express();
 
-// Environment variables
+// Use environment variables
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
 if (!DRIVE_FOLDER_ID) {
   console.error("Missing DRIVE_FOLDER_ID environment variable.");
   process.exit(1);
 }
 
-// Read service account JSON from mounted secret file
+// Determine service account JSON source
 const SERVICE_ACCOUNT_JSON_PATH = "/secrets/sa.json";
-if (!fs.existsSync(SERVICE_ACCOUNT_JSON_PATH)) {
-  console.error(`Missing service account JSON at ${SERVICE_ACCOUNT_JSON_PATH}`);
+
+let SERVICE_ACCOUNT_JSON;
+
+if (process.env.SERVICE_ACCOUNT_JSON) {
+  // Local development: use environment variable
+  SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON;
+} else if (fs.existsSync(SERVICE_ACCOUNT_JSON_PATH)) {
+  // Cloud Run: use mounted secret file
+  SERVICE_ACCOUNT_JSON = fs.readFileSync(SERVICE_ACCOUNT_JSON_PATH, "utf8");
+} else {
+  console.error(
+    `Missing service account JSON. Provide SERVICE_ACCOUNT_JSON env or mount at ${SERVICE_ACCOUNT_JSON_PATH}`
+  );
   process.exit(1);
 }
-
-const SERVICE_ACCOUNT_JSON = fs.readFileSync(SERVICE_ACCOUNT_JSON_PATH, "utf8");
 
 // Initialize Google Drive API client
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
   scopes: ["https://www.googleapis.com/auth/drive.readonly"],
 });
-
 const drive = google.drive({ version: "v3", auth });
 
 // Endpoint to get files
