@@ -4,15 +4,12 @@ import fs from "fs";
 
 const app = express();
 
-// Use environment variables
+// Environment variables
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
 if (!DRIVE_FOLDER_ID) {
   console.error("Missing DRIVE_FOLDER_ID environment variable.");
   process.exit(1);
 }
-
-// Read service account JSON from mounted secret file
-import fs from "fs";
 
 // Read service account JSON from mounted secret file
 const SERVICE_ACCOUNT_JSON_PATH = "/secrets/sa.json";
@@ -23,6 +20,7 @@ if (!fs.existsSync(SERVICE_ACCOUNT_JSON_PATH)) {
 
 const SERVICE_ACCOUNT_JSON = fs.readFileSync(SERVICE_ACCOUNT_JSON_PATH, "utf8");
 
+// Initialize Google Drive API client
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
   scopes: ["https://www.googleapis.com/auth/drive.readonly"],
