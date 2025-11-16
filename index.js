@@ -14,7 +14,7 @@ const SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON;
 if (!ALBUM_ID) console.error("ALBUM_ID is not set!");
 if (!SERVICE_ACCOUNT_JSON) console.error("SERVICE_ACCOUNT_JSON is not set!");
 
-// Initialize Google Photos API safely
+// Initialize Google Photos API safely (correct version)
 let photoslibrary;
 try {
   const auth = new google.auth.GoogleAuth({
@@ -22,7 +22,10 @@ try {
     scopes: ["https://www.googleapis.com/auth/photoslibrary.readonly"]
   });
 
-  photoslibrary = google.photoslibrary({ version: "v1", auth });
+  photoslibrary = google.photoslibrary({
+    version: "v1",
+    auth: auth
+  });
 } catch (err) {
   console.error("Google Photos API initialization failed:", err);
 }
