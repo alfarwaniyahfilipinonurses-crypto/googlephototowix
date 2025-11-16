@@ -7,25 +7,28 @@ app.use(cors());
 
 const PORT = process.env.PORT || 8080;
 
-// Parse secrets & environment variables
-const ALBUM_ID = process.env.ALBUM_ID; // your Google Photos album ID
-const SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON;
+// Environment variables
+const ALBUM_ID = process.env.ALBUM_ID; // Google Photos album ID
+const SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON; // Secret JSON string
 
-// Initialize Google Photos API
-let photos = [];
+// Google Photos API client
+let photos = async () => [];
 try {
   const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
     scopes: ["https://www.googleapis.com/auth/photoslibrary.readonly"]
   });
+
   const photoslibrary = google.photoslibrary({ version: "v1", auth });
 
   photos = async () => {
-    const res = await photoslibrary.mediaItems.search({ requestBody: { albumId: ALBUM_ID } });
+    const res = await photoslibrary.mediaItems.search({
+      requestBody: { albumId: ALBUM_ID }
+    });
     return res.data.mediaItems || [];
   };
 } catch (err) {
-  console.error("Google Photos init failed:", err);
+  console.error("Google Photos API initialization failed:", err);
 }
 
 // Endpoint to return album items
@@ -34,7 +37,7 @@ app.get("/", async (req, res) => {
   try {
     const items = await photos();
     const output = items.map(i => ({
-      url: i.baseUrl + "=w800", // resized
+      url: i.baseUrl + "=w800", // resize for display
       mimeType: i.mimeType,
       filename: i.filename
     }));
