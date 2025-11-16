@@ -1,5 +1,6 @@
 import express from "express";
 import { google } from "googleapis";
+import fs from "fs";
 
 const app = express();
 
@@ -10,15 +11,19 @@ if (!DRIVE_FOLDER_ID) {
   process.exit(1);
 }
 
-const SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON;
-if (!SERVICE_ACCOUNT_JSON) {
-  console.error("Missing SERVICE_ACCOUNT_JSON environment variable.");
+// Read service account JSON from mounted secret file
+const SERVICE_ACCOUNT_PATH = "/secrets/sa.json"; // path where secret will be mounted
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_PATH, "utf-8"));
+} catch (err) {
+  console.error("Failed to read service account JSON:", err.message);
   process.exit(1);
 }
 
 // Initialize Google Drive API client
 const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
+  credentials: serviceAccount,
   scopes: ["https://www.googleapis.com/auth/drive.readonly"],
 });
 const drive = google.drive({ version: "v3", auth });
@@ -37,7 +42,6 @@ app.get("/", async (req, res) => {
       return res.status(200).json({ message: "No files found in the folder." });
     }
 
-    // Return simplified info
     const fileList = files.map((file) => ({
       id: file.id,
       name: file.name,
