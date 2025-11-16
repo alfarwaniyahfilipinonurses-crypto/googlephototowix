@@ -12,20 +12,22 @@ if (!DRIVE_FOLDER_ID) {
 }
 
 // Read service account JSON from mounted secret file
-const SERVICE_ACCOUNT_PATH = "/secrets/sa.json"; // path where secret will be mounted
-let serviceAccount;
-try {
-  serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_PATH, "utf-8"));
-} catch (err) {
-  console.error("Failed to read service account JSON:", err.message);
+import fs from "fs";
+
+// Read service account JSON from mounted secret file
+const SERVICE_ACCOUNT_JSON_PATH = "/secrets/sa.json";
+if (!fs.existsSync(SERVICE_ACCOUNT_JSON_PATH)) {
+  console.error(`Missing service account JSON at ${SERVICE_ACCOUNT_JSON_PATH}`);
   process.exit(1);
 }
 
-// Initialize Google Drive API client
+const SERVICE_ACCOUNT_JSON = fs.readFileSync(SERVICE_ACCOUNT_JSON_PATH, "utf8");
+
 const auth = new google.auth.GoogleAuth({
-  credentials: serviceAccount,
+  credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
   scopes: ["https://www.googleapis.com/auth/drive.readonly"],
 });
+
 const drive = google.drive({ version: "v3", auth });
 
 // Endpoint to get files
