@@ -2,67 +2,59 @@ import express from "express";
 import { google } from "googleapis";
 
 const app = express();
-const port = process.env.PORT || 8080;
 
+// Use environment variables
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
+if (!DRIVE_FOLDER_ID) {
+  console.error("Missing DRIVE_FOLDER_ID environment variable.");
+  process.exit(1);
+}
+
+const SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON;
+if (!SERVICE_ACCOUNT_JSON) {
+  console.error("Missing SERVICE_ACCOUNT_JSON environment variable.");
+  process.exit(1);
+}
+
+// Initialize Google Drive API client
+const auth = new google.auth.GoogleAuth({
+  credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
+  scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+});
+const drive = google.drive({ version: "v3", auth });
+
+// Endpoint to get files
 app.get("/", async (req, res) => {
   try {
-    console.log("🔍 Starting Google Drive folder read...");
-
-    const folderId = process.env.DRIVE_FOLDER_ID;
-    const serviceAccountJson = process.env.SERVICE_ACCOUNT_JSON;
-
-    if (!folderId) {
-      console.log("❌ Missing DRIVE_FOLDER_ID");
-      return res.status(400).json({ error: "Missing DRIVE_FOLDER_ID" });
-    }
-
-    if (!serviceAccountJson) {
-      console.log("❌ Missing SERVICE_ACCOUNT_JSON");
-      return res.status(400).json({ error: "Missing SERVICE_ACCOUNT_JSON" });
-    }
-
-    console.log("🔑 Authenticating with service account...");
-
-    const credentials = JSON.parse(serviceAccountJson);
-
-    const auth = new google.auth.JWT({
-      email: credentials.client_email,
-      key: credentials.private_key,
-      scopes: ["https://www.googleapis.com/auth/drive.readonly"]
-    });
-
-    const drive = google.drive({ version: "v3", auth });
-
-    console.log("📁 Fetching files from folder:", folderId);
-
     const response = await drive.files.list({
-      q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
-      fields: "files(id, name, mimeType)"
+      q: `'${DRIVE_FOLDER_ID}' in parents and trashed=false`,
+      fields: "files(id, name, mimeType, webViewLink, thumbnailLink)",
+      pageSize: 100,
     });
 
     const files = response.data.files || [];
-
     if (files.length === 0) {
-      console.log("⚠ No images found in folder.");
-      return res.json([]);
+      return res.status(200).json({ message: "No files found in the folder." });
     }
 
-    console.log(`📸 Found ${files.length} images.`);
-
-    const imageUrls = files.map(f => ({
-      id: f.id,
-      name: f.name,
-      viewUrl: `https://drive.google.com/uc?export=view&id=${f.id}`,
-      thumbnail: `https://drive.google.com/thumbnail?id=${f.id}`
+    // Return simplified info
+    const fileList = files.map((file) => ({
+      id: file.id,
+      name: file.name,
+      mimeType: file.mimeType,
+      link: file.webViewLink,
+      thumbnail: file.thumbnailLink || null,
     }));
 
-    res.json(imageUrls);
-  } catch (error) {
-    console.error("❌ Server error:", error);
-    res.status(500).json({ error: "Server error", details: error.message });
+    res.json(fileList);
+  } catch (err) {
+    console.error("Error fetching files:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 });
 
-app.listen(port, () => {
-  console.log(`🚀 Server running on port ${port}`);
+// Listen on the port provided by Cloud Run
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Drive gallery API running on port ${PORT}`);
 });
