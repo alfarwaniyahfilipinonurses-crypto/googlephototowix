@@ -1,67 +1,56 @@
-const express = require("express");
-const cors = require("cors");
-const { google } = require("googleapis");
+import express from "express";
+import cors from "cors";
+import { google } from "googleapis";
 
 const app = express();
-app.use(cors()); // allow all origins
+app.use(cors());
 
-const PORT = process.env.PORT || 8080;
-
-// Environment variables
-const ALBUM_ID = process.env.ALBUM_ID;
+// ENVIRONMENT VARIABLES
 const SERVICE_ACCOUNT_JSON = process.env.SERVICE_ACCOUNT_JSON;
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
 
-if (!ALBUM_ID) console.error("ALBUM_ID is not set!");
-if (!SERVICE_ACCOUNT_JSON) console.error("SERVICE_ACCOUNT_JSON is not set!");
-
-// Initialize Google Photos API safely (correct version)
-let photoslibrary;
-try {
-  const auth = new google.auth.GoogleAuth({
-    credentials: JSON.parse(SERVICE_ACCOUNT_JSON),
-    scopes: ["https://www.googleapis.com/auth/photoslibrary.readonly"]
-  });
-
-  photoslibrary = google.photoslibrary({
-    version: "v1",
-    auth: auth
-  });
-} catch (err) {
-  console.error("Google Photos API initialization failed:", err);
+if (!SERVICE_ACCOUNT_JSON || !DRIVE_FOLDER_ID) {
+  console.error("Missing SERVICE_ACCOUNT_JSON or DRIVE_FOLDER_ID.");
+  process.exit(1);
 }
 
-// Function to fetch media items
-async function fetchPhotos() {
-  if (!photoslibrary || !ALBUM_ID) return [];
+const credentials = JSON.parse(SERVICE_ACCOUNT_JSON);
+
+// Authenticate Google Drive API
+const auth = new google.auth.GoogleAuth({
+  credentials,
+  scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+});
+
+const drive = google.drive({ version: "v3", auth });
+
+// Fetch images from Drive folder
+app.get("/drive-images", async (req, res) => {
   try {
-    const res = await photoslibrary.mediaItems.search({
-      requestBody: { albumId: ALBUM_ID }
+    const files = await drive.files.list({
+      q: `'${DRIVE_FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`,
+      fields: "files(id, name, mimeType)",
     });
-    return res.data.mediaItems || [];
-  } catch (err) {
-    console.error("Error fetching photos:", err);
-    return [];
-  }
-}
 
-// Endpoint to return album items
-app.get("/", async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  try {
-    const items = await fetchPhotos();
-    if (!items.length) return res.json({ message: "No photos found or failed to fetch." });
+    if (!files.data.files.length) {
+      return res.json({ images: [] });
+    }
 
-    const output = items.map(i => ({
-      url: i.baseUrl + "=w800", // resize for display
-      mimeType: i.mimeType,
-      filename: i.filename
-    }));
+    // Generate temporary download URLs
+    const images = await Promise.all(
+      files.data.files.map(async (file) => {
+        const url = `https://drive.google.com/uc?export=view&id=${file.id}`;
+        return { id: file.id, name: file.name, url };
+      })
+    );
 
-    res.json(output);
-  } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ error: "Server error fetching photos." });
+    res.json({ images });
+  } catch (error) {
+    console.error("Drive fetch error:", error);
+    res.status(500).json({ error: "Failed to load Google Drive images." });
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Start server
+const port = process.env.PORT || 8080;
+app.listen(port, () => console.log("Server running on port", port));
