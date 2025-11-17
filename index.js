@@ -1,8 +1,12 @@
 import express from "express";
 import { google } from "googleapis";
 import fs from "fs";
+import cors from "cors";
 
 const app = express();
+
+// Add this before your routes
+app.use(cors({ origin: "*" })); // allow all origins (or put your Wix domain)
 
 // Use environment variables
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
